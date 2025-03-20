@@ -1,4 +1,4 @@
-CSCFLAGS+=	-C -D_XOPEN_SOURCE
+CSCFLAGS+=	-C -D_XOPEN_SOURCE=700
 CSCFLAGS+=	-C -Wno-deprecated-declarations
 CSCFLAGS+=	-I../vendor/libvsync/include
 CSCFLAGS+=	-I../include
