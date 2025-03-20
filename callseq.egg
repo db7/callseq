@@ -1,0 +1,21 @@
+((synopsis "Callback sequencer")
+ (category multithreading)
+ (license "0BSD")
+ (version "0.1")
+ (dependencies matchable)
+ (author "Diogo Behrens")
+ (component-options (csc-options "-O3" "-d0"))
+ (components
+  (c-object callseq-runtime
+            (source "runtime.c")
+            (csc-options  "-C" "-Wno-nullability-completeness"
+                          "-C" "-Wno-availability"
+                          "-Iinclude"
+                          "-Ivendor/libvsync/include"))
+  (extension callseq
+             (source "callseq.scm")
+             (source-dependencies "comptime.scm")
+             (objects callseq-runtime))))
+
+
+
