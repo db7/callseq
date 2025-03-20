@@ -57,6 +57,11 @@
 #define CROUTON_ASSEMBLY
 #endif
 
+#if defined(CROUTON_ASSEMBLY) && !defined(__aarch64__)
+#undef CROUTON_ASSEMBLY
+#define CROUTON_UCONTEXT
+#endif
+
 #if defined(CROUTON_UCONTEXT)
 #include <ucontext.h>
 #define crouton_ctx ucontext_t
