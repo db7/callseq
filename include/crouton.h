@@ -35,6 +35,7 @@
 #ifndef _CROUTON_H_
 #define _CROUTON_H_
 #include <stddef.h>
+#include <string.h>
 
 #ifndef _XOPEN_SOURCE
 #define _XOPEN_SOURCE
@@ -53,11 +54,13 @@
 #define CROUTON_DISABLE
 #endif
 
+/* Try to use custom assembly by default */
 #if !defined(CROUTON_DISABLE) && !defined(CROUTON_UCONTEXT)
 #define CROUTON_ASSEMBLY
 #endif
 
-#if defined(CROUTON_ASSEMBLY) && !defined(__aarch64__)
+/* Fallback to ucontext if architecture not supported */
+#if defined(CROUTON_ASSEMBLY) && !(defined(__aarch64__) || defined(__x86_64__))
 #undef CROUTON_ASSEMBLY
 #define CROUTON_UCONTEXT
 #endif
@@ -83,10 +86,16 @@ typedef struct {
   uintptr_t sp, unused;
 } crouton_ctx;
 void crouton_swap(crouton_ctx *caller, crouton_ctx *calee, void *arg);
-#else
-#error "assembly sequence for architecture not available"
-#endif /* defined(__aarch64__) */
-#else  /* defined(CROUTON_DISABLE) */
+#elif defined(__x86_64__)
+typedef struct {
+  uint64_t r12, r13;
+  uint64_t r14, r15;
+  uint64_t rbx, sp;
+  uint64_t rbp, unused;
+} crouton_ctx;
+void crouton_swap(crouton_ctx *caller, crouton_ctx *calee, void *arg);
+#endif
+#else /* defined(CROUTON_DISABLE) */
 #define crouton_ctx int
 #endif /* defined(CROUTON_UCONTEXT) */
 
@@ -152,8 +161,13 @@ int crouton_init(crouton_t *c, crouton_f func, void *sp, size_t sz) {
 
 #elif defined(CROUTON_ASSEMBLY)
   memset(&c->callee, 0, sizeof(crouton_ctx));
+#if defined(__aarch64__)
   c->callee.sp = (uintptr_t)spa + (uintptr_t)sza;
   c->callee.x30 = (uintptr_t)_crouton_do_ptr;
+#else
+  c->callee.rsp = (uintptr_t)spa + (uintptr_t)sza;
+  *(void **)c->callee.rsp = (uintptr_t)_crouton_do_ptr;
+#endif
 
 #else /* CROUTON_DISABLE */
   (void)spa;
@@ -255,6 +269,33 @@ __asm__("	.align	4\n"
         "	mov x0, x2\n"
         "	ret\n"
         "	.cfi_endproc");
+#elif defined(__x86_64__)
+__asm__("	.align	4\n"
+        "	.globl	" FUNC_NAME "\n"
+        "	" TYPE_LINE "\n"
+        "" FUNC_NAME ":\n"
+        "	.cfi_startproc\n"
+        "	/* save context */\n"
+        "	movq	%r12,   (%rdi)\n"
+        "	movq	%r13,  8(%rdi)\n"
+        "	movq	%r14, 16(%rdi)\n"
+        "	movq	%r15, 24(%rdi)\n"
+        "	movq	%rbx, 32(%rdi)\n"
+        "	movq	%rsp, 40(%rdi)\n"
+        "	movq	%rbp, 48(%rdi)\n"
+        "	/* swap context */\n"
+        "	movq	  (%rsi), %r12\n"
+        "	movq	 8(%rsi), %r13\n"
+        "	movq	16(%rsi), %r14\n"
+        "	movq	24(%rsi), %r15\n"
+        "	movq	32(%rsi), %rbx\n"
+        "	movq	40(%rsi), %rsp\n"
+        "	movq	48(%rsi), %rbp\n"
+        "	/* move arg to first function argument */\n"
+        "	movq	$0, %rax\n"
+        "	movq 	%rdx, %rdi\n"
+        "	ret\n"
+        "	.cfi_endproc");
 #else
 #error "Unsupported architecture"
 #endif
@@ -263,5 +304,4 @@ __asm__("	.align	4\n"
 #undef TYPE_LINE
 
 #endif /* !CROUTON_ASSEMBLY */
-
 #endif /* _CROUTON_H_ */
