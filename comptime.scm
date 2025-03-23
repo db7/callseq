@@ -21,7 +21,7 @@
     (string-join
      (list
       ;; impl prototype
-      (format "~a impl_~a(~a);" retv name (convert-args args))
+      (format "~a impl_~a(~a);" (convert-type retv) name (convert-args args))
 
       ;; request struct
       (format "struct req_~a {" name)
@@ -32,7 +32,6 @@
                 (cons (list (format "~a *" (convert-type retv)) "ret") args)
                 args))
        "\n")
-      #;(format "    ~a ~a")
       (format "};")
 
       ;; trampoline function
@@ -53,10 +52,11 @@
 
       ;; entry function
       (format "int callseq_invoke(void *func, void *arg);")
-      (format "~a ~a(~a) {" retv name (convert-args args))
+      (format "~a ~a(~a) {" (convert-type retv) name (convert-args args))
       (format "\tint err;")
-      (when (not (equal? retv 'void))
-        (format "\t~a ret;" retv))
+      (if (equal? retv 'void)
+          ""
+          (format "\t~a ret;" (convert-type retv)))
       (format "\tstruct req_~a req = {" name)
       (string-join
        (map (lambda (arg)
@@ -70,8 +70,9 @@
       (format "\t};")
       (format "\terr = callseq_invoke(&tramp_~a, &req);" name)
       (format "\t if(err) abort();")
-      (when (not (equal? retv 'void))
-        (format "\treturn ret;"))
+      (if (equal? retv 'void)
+          ""
+          (format "\treturn ret;"))
       (format "}"))
      "\n")))
 
@@ -87,7 +88,13 @@
 (define (convert-type type)
   (match type
          ('int "int")
+         ('integer "int")
          ('c-string "char *")
+         ('c-pointer "void *")
+         ('void "void")
+         (`(c-pointer ,type) (format "~a *" (convert-type type)))
+         (`(struct ,name) (format "struct ~a" name))
+         (`(const ,type) (format "const ~a" (convert-type type)))
          (_ (format "~a" type))))
 
 (define (convert-args args)
