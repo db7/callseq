@@ -86,22 +86,31 @@
                   (string-append so-far delimiter (car strings)))))))
 
 (define (convert-type type)
+  ;; if type is a registered foreign type, extract the first element
+  (let ((ftype (chicken.compiler.support#lookup-foreign-type type)))
+    (convert-type/intern (if ftype (vector-ref ftype 0) type))))
+
+(define (convert-type/intern type)
   (match type
          ('int "int")
          ('integer "int")
+         ('unsigned-integer32 "uint32_t")
          ('c-string "char *")
          ('c-pointer "void *")
          ('void "void")
-         (`(c-pointer ,type) (format "~a *" (convert-type type)))
+         (`(c-pointer ,type) (format "~a *" (convert-type/intern type)))
          (`(struct ,name) (format "struct ~a" name))
-         (`(const ,type) (format "const ~a" (convert-type type)))
-         (_ (format "~a" type))))
+         (`(const ,type) (format "const ~a" (convert-type/intern type)))
+         (_ (cond
+              ((string? type) type)
+              (else
+               (printf "struct type ~a~n" type)
+               (format "struct ~a *" type))))))
 
 (define (convert-args args)
   (string-join
    (map (lambda (arg)
-          (format "~a ~a" (convert-type (car arg))
-                  (cadr arg)))
+          (format "~a ~a" (convert-type (car arg)) (cadr arg)))
         args)
    ", "))
 
